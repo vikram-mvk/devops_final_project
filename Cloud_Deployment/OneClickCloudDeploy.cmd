@@ -5,6 +5,9 @@ timeout 360
 
 start gcloud auth application-default login
 
+@echo "Press enter after you have authenticated your application"
+timeout 360
+
 cd Terraform
 terraform init
 terraform apply -auto-approve
