@@ -1,3 +1,6 @@
+Not required because if you want to create your own s3 bucket, you need to provide your access key and secret key in my S3Uploader flask app
+and recreate the docker file for the flask app and push to vikrammvk/uploads3:latest
+
 # S3 bucket for saving twitter images
 resource "aws_s3_bucket" "twitter_image_bucket" {
   bucket = var.bucket_name

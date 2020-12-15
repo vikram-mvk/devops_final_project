@@ -1,26 +1,27 @@
 # CSYE-7220 Project - Twitter Clone
 ​
 ## Steps to run the project locally on your machine:
-    * Pre-requisites: Python, pip, nodejs, npm and docker (for docker toolbox, modify the localhost url in the backend and frontend applications with docker-machine-ip, if necessary) 
+    Pre-requisites: Python, pip, nodejs, npm and docker (for docker toolbox, modify the localhost url in the backend and frontend applications with docker-machine-ip, if necessary) 
 * Dowload/Clone this repository
 * Go inside LocalMachine_Deployment folder and click the OneClickDeployAll.cmd file to have the entire application running in a single click ! 
-    * (If you face any issues, use the type commands manually.txt file to manually enter the commands)
+    * (If you face any issues, please refer to the type commands manually.txt file to manually enter the commands)
 * Wait for the react development server to start (1 min) and go to localhost:3000 to access your application
 
 ## Steps to run the project on Google Cloud:
-    * Pre-requisites: (if not done already)
-    1. Create an AWS account (if not done already), install AWS CLI and set up your credentials    
+    Pre-requisites: (if not done already)
+    1. Create a Google cloud account (if not done already), install Google Cloud CLI, run gcloud init to configure (create new project) 
     
-    2. Create a Google cloud account (if not done already), install Google Cloud CLI 
-    3. Create an empty project in your google cloud account and copy the project id and paste inside /Terraform/providers.tf.
+    2. Copy the project id and paste inside /Terraform/providers.tf.
 
-    4. Run the command gcloud config set project <project-id> to let the cli know that you're currently working on this project
+    3. Run the command gcloud config set project <project-id> to let the cli know that you're currently working on this project. Get your project ID from Gcloud console
     
-    5. Go to your gcloud console and search Kubernetes, then click enable kubernetes services, if not done already
+    4. Go to your gcloud console and search Kubernetes clusters, then click enable kubernetes services (requires billing), if not done already
+
+    5. Run the command "gcloud auth application-default login" in a terminal to authorize. 
 
 * Dowload/Clone this repository
 * Go inside Cloud_Deployment folder and click the OneClickDeployAll.cmd file to have the entire application running in a single click ! 
-  * (If you face any issues, use the type commands manually.txt file to manually enter the commands)
+  * (If you face any issues, please refer to the type commands manually.txt file to manually enter the commands)
 * Go to your gcloud console, search kubernetes engine -> go to services and ingress -> get the public IP of the React frontend service and use it to access the application. (Note: It takes 10 to 15 minutes for the loadbalancer to work after succesfull deployment)
 * Go into Terraform folder, open a cmd and type terraform destroy to destroy these resources.
 
