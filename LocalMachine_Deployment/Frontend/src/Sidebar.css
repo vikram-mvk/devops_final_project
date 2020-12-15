@@ -1,0 +1,64 @@
+.sidebar {
+  flex: 0.2;
+  margin-top: 20px;
+  padding-left: 10px;
+  padding-right: 10px;
+  border-radius: 25px;
+
+}
+.mysidebar{
+  border-right: 1px solid var(--twitter-background);
+  border-radius: 25px;
+  float: left;
+  margin-left: 70px;
+  margin-top: 150px;
+  padding: 5px;
+  overflow: auto;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.sidebar__twitterIcon {
+  color: var(--twitter-color);
+  font-size: 30px !important;
+  margin-left: 20px;
+  margin-bottom: 20px;
+  
+}
+
+.sidebar__tweet {
+  background-color: var(--twitter-color) !important;
+  border: none !important;
+  color: white !important;
+  font-weight: 900 !important;
+  text-transform: inherit !important;
+  border-radius: 30px !important;
+  height: 50px !important;
+  margin-top: 20px !important;
+  
+}
+
+.mysidebar::-webkit-scrollbar {
+  display: none;
+}
+
+
+@media screen and (max-width: 500px) and (min-width: 200px) {
+
+  .mysidebar{
+    border-radius: 25px;
+    display: inline-flex;
+    flex-direction: row;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: scroll;
+    float:none;
+    margin: 10px;
+
+  }
+  .widgets{
+    display: none;
+  }
+}
+
+

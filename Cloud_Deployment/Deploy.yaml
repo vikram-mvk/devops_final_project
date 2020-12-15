@@ -1,0 +1,986 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway-deploy
+  labels:
+    app: flask
+    tier: middle
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 2
+  selector:
+    matchLabels:
+      app: flask
+      tier: middle
+  template:
+    metadata:
+      labels:
+        app: flask
+        tier: middle
+    spec:
+      containers:
+        - name: api-gateway
+          image: vikrammvk/final_flask:latest
+          resources:
+            requests:
+              memory: "40Mi"
+              cpu: "40m"
+            limits:
+              memory: "50Mi"
+              cpu: "50m"
+          ports:
+          - name: liveness-port
+            containerPort: 5000
+            hostPort: 5000
+          
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: liveness-port
+            httpHeaders:
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: liveness-port
+            failureThreshold: 1
+            periodSeconds: 10
+          
+          startupProbe:
+            httpGet:
+              path: /health
+              port: liveness-port
+            failureThreshold: 25
+            periodSeconds: 10
+          imagePullPolicy: Always
+      restartPolicy: Always
+      
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  annotations:
+    cloud.google.com/load-balancer-type: "Internal"
+  labels:
+    app: flask
+    tier: middle
+spec:
+  type: LoadBalancer
+  selector:
+    app: flask
+    tier: middle
+  ports:
+  - port: 30001
+    targetPort: 5000
+    nodePort: 30001
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 86400
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: be-worker-deploy
+  labels:
+    app: be-worker
+    tier: backend
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 2
+  selector:
+    matchLabels:
+      app: be-worker
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: be-worker
+        tier: backend
+    spec:
+      containers:
+        - name: queue-listner-deployment
+          image: vikrammvk/final_be_worker:latest
+          resources:
+            requests:
+              memory: "40Mi"
+              cpu: "40m"
+            limits:
+              memory: "50Mi"
+              cpu: "50m"
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 5000
+      restartPolicy: Always
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: be-worker
+  labels:
+    app: be-worker
+    tier: backend
+spec:
+  type: NodePort
+  selector:
+    app: be-worker
+    tier: backend
+  ports:
+  - port: 5000
+    nodePort: 30005
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beq-deploy
+spec:
+  selector:
+    matchLabels:
+      app: beq
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: beq
+    spec:
+      containers:
+      - name: beq
+        image: redislabs/rejson:latest
+        ports:
+        - containerPort: 6379
+          name: beq
+        resources:
+            requests:
+              memory: "40Mi"
+              cpu: "40m"
+            limits:
+              memory: "50Mi"
+              cpu: "50m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: beq
+  labels:
+   app: beq
+spec:
+  clusterIP: None
+  selector:
+    app: beq
+  ports:
+    - port: 6379
+      targetPort: 6379
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache-deploy
+spec:
+  selector:
+    matchLabels:
+      app: cache
+  replicas: 1
+  template:
+    metadata:
+      name: cache-deploy
+      labels:
+        app: cache
+    spec:
+      containers:
+      - name: cache
+        image: redislabs/rejson:latest
+        ports:
+        - containerPort: 6379
+          name: cache
+        resources:
+            requests:
+              memory: "40Mi"
+              cpu: "40m"
+            limits:
+              memory: "50Mi"
+              cpu: "50m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache
+  labels:
+   app: cache
+spec:
+  clusterIP: None
+  selector:
+    app: cache
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/proxy
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups:
+  - extensions
+  resources:
+  - ingresses
+  verbs: ["get", "list", "watch"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: monitoring
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-server-conf
+  labels:
+    name: prometheus-server-conf
+  namespace: monitoring
+data:
+  prometheus.rules: |-
+    groups:
+    - name: devopscube demo alert
+      rules:
+      - alert: High Pod Memory
+        expr: sum(container_memory_usage_bytes) > 1
+        for: 1m
+        labels:
+          severity: slack
+        annotations:
+          summary: High Memory Usage
+  prometheus.yml: |-
+    global:
+      scrape_interval: 5s
+      evaluation_interval: 5s
+    rule_files:
+      - /etc/prometheus/prometheus.rules
+    alerting:
+      alertmanagers:
+      - scheme: http
+        static_configs:
+        - targets:
+          - "alertmanager.monitoring.svc:9093"
+
+    scrape_configs:
+      - job_name: 'kubernetes-apiservers'
+
+        kubernetes_sd_configs:
+        - role: endpoints
+        scheme: https
+
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: default;kubernetes;https
+
+      - job_name: 'kubernetes-nodes'
+
+        scheme: https
+
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+        kubernetes_sd_configs:
+        - role: node
+
+        relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - target_label: __address__
+          replacement: kubernetes.default.svc:443
+        - source_labels: [__meta_kubernetes_node_name]
+          regex: (.+)
+          target_label: __metrics_path__
+          replacement: /api/v1/nodes/${1}/proxy/metrics
+
+      
+      - job_name: 'kubernetes-pods'
+
+        kubernetes_sd_configs:
+        - role: pod
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: kubernetes_pod_name
+      
+      - job_name: 'kube-state-metrics'
+        static_configs:
+          - targets: ['kube-state-metrics.kube-system.svc.cluster.local:8080']
+
+      - job_name: 'kubernetes-cadvisor'
+
+        scheme: https
+
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+        kubernetes_sd_configs:
+        - role: node
+
+        relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - target_label: __address__
+          replacement: kubernetes.default.svc:443
+        - source_labels: [__meta_kubernetes_node_name]
+          regex: (.+)
+          target_label: __metrics_path__
+          replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+      
+      - job_name: 'kubernetes-service-endpoints'
+
+        kubernetes_sd_configs:
+        - role: endpoints
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+          action: replace
+          target_label: __scheme__
+          regex: (https?)
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+        - action: labelmap
+          regex: __meta_kubernetes_service_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          action: replace
+          target_label: kubernetes_name
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feq-deploy
+spec:
+  selector:
+    matchLabels:
+      app: feq
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: feq
+    spec:
+      containers:
+      - name: feq
+        image: redislabs/rejson:latest
+        ports:
+        - containerPort: 6379
+          name: feq
+        resources:
+            requests:
+              memory: "40Mi"
+              cpu: "40m"
+            limits:
+              memory: "50Mi"
+              cpu: "50m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feq
+  labels:
+   app: feq
+spec:
+  clusterIP: None
+  selector:
+    app: feq
+  ports:
+    - port: 6379
+      targetPort: 6379
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+data:
+  prometheus.yaml: |-
+    {
+        "apiVersion": 1,
+        "datasources": [
+            {
+               "access":"proxy",
+                "editable": true,
+                "name": "prometheus",
+                "orgId": 1,
+                "type": "prometheus",
+                "url": "http://prometheus-service.monitoring.svc:8080",
+                "version": 1
+            }
+        ]
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      name: grafana
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:latest
+        ports:
+        - name: grafana
+          containerPort: 3000
+        resources:
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+          requests: 
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+          - mountPath: /var/lib/grafana
+            name: grafana-storage
+          - mountPath: /etc/grafana/provisioning/datasources
+            name: grafana-datasources
+            readOnly: false
+      volumes:
+        - name: grafana-storage
+          emptyDir: {}
+        - name: grafana-datasources
+          configMap:
+              defaultMode: 420
+              name: grafana-datasources
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+  annotations:
+      prometheus.io/scrape: 'true'
+      prometheus.io/port:   '3000'
+spec:
+  selector: 
+    app: grafana
+  type: LoadBalancer  
+  ports:
+    - port: 3000
+      targetPort: 3000
+
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-api-gateway
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway-deploy
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: AverageValue
+        averageValue: 25Mi
+
+---
+
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-frontend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: react-app-deploy
+  minReplicas: 1
+  maxReplicas: 4
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: AverageValue
+        averageValue: 25Mi
+---
+
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-queue-listner
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: q-listner-deploy
+  minReplicas: 1
+  maxReplicas: 4
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: AverageValue
+        averageValue: 25Mi
+---
+
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-s3upload
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: uploads3-deploy
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: AverageValue
+        averageValue: 25Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-deploy
+spec:
+  selector:
+    matchLabels:
+      app: mongodb
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:latest
+        ports:
+        - containerPort: 27017
+          name: mongodb
+        resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  labels:
+   app: mongodb
+spec:
+  clusterIP: None
+  selector:
+    app: mongodb
+  ports:
+    - port: 27017
+      targetPort: 27017
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: prometheus-deployment
+  namespace: monitoring
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: prometheus-server
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.12.0
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus/"
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: prometheus-config-volume
+              mountPath: /etc/prometheus/
+            - name: prometheus-storage-volume
+              mountPath: /prometheus/
+      volumes:
+        - name: prometheus-config-volume
+          configMap:
+            defaultMode: 420
+            name: prometheus-server-conf
+  
+        - name: prometheus-storage-volume
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-service
+  namespace: monitoring
+  annotations:
+      prometheus.io/scrape: 'true'
+      prometheus.io/port:   '9090'
+spec:
+  selector: 
+    app: prometheus-server
+  type: LoadBalancer 
+  ports:
+    - port: 8080
+      targetPort: 9090 
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: q-listner-deploy
+  labels:
+    app: queue-listner
+    tier: middle
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 2
+  selector:
+    matchLabels:
+      app: queue-listner
+      tier: middle
+  template:
+    metadata:
+      labels:
+        app: queue-listner
+        tier: middle
+    spec:
+      containers:
+        - name: queue-listner-container
+          image: vikrammvk/final_q_listener:latest
+          resources:
+            requests:
+              memory: "40Mi"
+              cpu: "40m"
+            limits:
+              memory: "50Mi"
+              cpu: "50m"
+          imagePullPolicy: Always
+          ports:
+          - name: port
+            containerPort: 5000
+            hostPort: 5000
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: q-listner
+  annotations:
+    cloud.google.com/load-balancer-type: "Internal"
+  labels:
+    app: queue-listner
+    tier: middle
+spec:
+  type: NodePort
+  selector:
+    app: queue-listner
+    tier: middle
+  ports:
+  - port: 5000
+    nodePort: 30004
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: react-app-deploy
+  labels:
+    app: react
+    tier: frontend
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 2
+  selector:
+    matchLabels:
+      app: react
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        app: react
+        tier: frontend
+    spec:
+      containers:
+        - name: react-app
+          image: vikrammvk/final_react:latest
+          resources:
+            requests:
+              memory: "40Mi"
+              cpu: "40m"
+            limits:
+              memory: "50Mi"
+              cpu: "50m"
+          ports:
+          - name: liveness-port
+            containerPort: 3000
+            hostPort: 3000
+          
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            httpHeaders:
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            failureThreshold: 1
+            periodSeconds: 10
+          
+          startupProbe:
+            httpGet:
+              path: /
+              port: 80
+            failureThreshold: 25
+            periodSeconds: 10
+          
+          imagePullPolicy: Always
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: react-app
+  labels:
+    app: react
+    tier: frontend
+spec:
+  selector:
+    app: react
+    tier: frontend
+  ports:
+  - name: http
+    port: 30010
+    targetPort: 80
+    nodePort: 30010
+  type: LoadBalancer
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uploads3-deploy
+  labels:
+    app: s3worker
+    tier: middle
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 2
+  selector:
+    matchLabels:
+      app: s3worker
+      tier: middle
+  template:
+    metadata:
+      labels:
+        app: s3worker
+        tier: middle
+    spec:
+      containers:
+        - name: uploads3
+          image: vikrammvk/s3uploader:latest
+          resources:
+            requests:
+              memory: "40Mi"
+              cpu: "40m"
+            limits:
+              memory: "50Mi"
+              cpu: "50m"
+          ports:
+          - name: liveness-port
+            containerPort: 5001
+            hostPort: 5001
+          
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: liveness-port
+            httpHeaders:
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: liveness-port
+            failureThreshold: 1
+            periodSeconds: 10
+          
+          startupProbe:
+            httpGet:
+              path: /health
+              port: liveness-port
+            failureThreshold: 25
+            periodSeconds: 10
+          imagePullPolicy: Always
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: uploads3
+  annotations:
+    cloud.google.com/load-balancer-type: "Internal"
+  labels:
+    app: s3worker
+    tier: middle
+spec:
+  type: LoadBalancer
+  selector:
+    app: s3worker
+    tier: middle
+  ports:
+  - port: 30002
+    targetPort: 5001
+    nodePort: 30002
+
+
+
+
+

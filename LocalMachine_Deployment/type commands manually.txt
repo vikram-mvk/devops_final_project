@@ -1,0 +1,28 @@
+Open a terminal or cmd and run these 5 commands to create 5 containers:
+
+docker run -d -t -p 1111:6379 --name redis_json_queue redislabs/rejson:latest
+
+docker run -d -t -p 1112:6379 --name redis_json_cache redislabs/rejson:latest
+
+docker run -d -t -p 1113:6379 --name redis_json_mongoQ redislabs/rejson:latest
+
+docker run -d -t -p 27017:27017 --name mongodb mongo:latest
+
+docker run -d -t -p 5001:50001 --name s3worker vikrammvk/s3uploader
+
+
+Go to the backends folder, open a cmd/terminal and type the following: (open new command window for each python command)
+
+pip install -r requirements.txt
+
+python api_gateway.py
+
+python queue_listener.py
+
+python backend_worker.py
+
+Go to the frontend folder and type: 
+
+npm start
+
+Done...Now Go to http://localhost:3000 to access the application

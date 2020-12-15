@@ -1,0 +1,11 @@
+> Go to terraform folder, open a terminal and type the following commands one by one:
+
+terraform init
+
+terraform apply -auto-approve
+[after above command is done, wait for 1 minute]
+
+[below command modifies your kubectl config to connect to gcp. If you dont want to do that, just go to your gcp console and open a cloud terminal there and enter the kubectl apply command there]
+gcloud container clusters get-credentials twitterclonecluster  --region us-east1-b
+
+kubectl apply -f Deploy.yaml
