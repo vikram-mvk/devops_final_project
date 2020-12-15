@@ -22,7 +22,7 @@
 * Dowload/Clone this repository
 * Go inside Cloud_Deployment folder and click the OneClickDeployAll.cmd file to have the entire application running in a single click ! 
   * (If you face any issues, please refer to the type commands manually.txt file to manually enter the commands)
-* Go to your gcloud console, search kubernetes engine -> go to services and ingress -> get the public IP of the React frontend service and use it to access the application. (Note: It may to 5 to 10 minutes for the loadbalancer to work after succesfull deployment)
+* Go to your gcloud console, search kubernetes engine -> go to services and ingress -> get the public IP of the React frontend service and use it to access the application. (Note: It takes 10 minutes for everything to work perfectly after succesfull deployment. If GCloud console says doesn't have minimum availability, refresh the page)
 * Go into Terraform folder, open a cmd and type terraform destroy to destroy these resources.
 
 
