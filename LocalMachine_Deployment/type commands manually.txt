@@ -23,6 +23,6 @@ python backend_worker.py
 
 Go to the frontend folder and type: 
 
-npm start
+npm install && npm start
 
 Done...Now Go to http://localhost:3000 to access the application

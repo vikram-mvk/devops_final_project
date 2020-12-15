@@ -34,7 +34,7 @@ cd ..
 
 cd Frontend
 
-npm start
+npm install && npm start
 
 echo "Go to http://localhost:3000 to access the application"
 

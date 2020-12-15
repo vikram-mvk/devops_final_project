@@ -1,5 +1,5 @@
 provider "google" {
-  project = "capable-country-298617"
+  project = "Enter_Your-Project-Id-@-here"
   region  = var.region_gcp
 }
 

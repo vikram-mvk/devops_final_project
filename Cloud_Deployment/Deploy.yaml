@@ -522,11 +522,11 @@ spec:
           containerPort: 3000
         resources:
           limits:
-            memory: "2Gi"
-            cpu: "1000m"
+            memory: "64Mi"
+            cpu: "100m"
           requests: 
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "64Mi"
+            cpu: "100m"
         volumeMounts:
           - mountPath: /var/lib/grafana
             name: grafana-storage
@@ -714,6 +714,9 @@ metadata:
   namespace: monitoring
 spec:
   replicas: 1
+  selector:
+      matchLabels:
+        app: prometheus-server
   template:
     metadata:
       labels:

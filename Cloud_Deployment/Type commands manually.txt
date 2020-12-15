@@ -12,7 +12,7 @@ terraform apply -auto-approve
 [after above command is done, wait for 1 minute]
 
 
-[below command modifies your kubectl config to connect to gcp. If you dont want to do that, skip the next command, go to your gcp console and open a cloud terminal there and enter the kubectl apply -f ]
+[below command modifies your kubectl config to connect to gcp. If you dont want to do that, skip the next command, go to your gcp console and open a cloud terminal there and enter the kubectl apply -f https://raw.githubusercontent.com/vikramzone/devops_final_project/main/Cloud_Deployment/Deploy.yaml]
 
 gcloud container clusters get-credentials twitterclonecluster  --region us-east1-b
 
