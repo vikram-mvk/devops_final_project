@@ -7,7 +7,7 @@
     * (If you face any issues, use the type commands manually.txt file to manually enter the commands)
 * Wait for the react development server to start (1 min) and go to localhost:3000 to access your application
 
-## Steps to run the project locally on your host machine with Docker installed:
+## Steps to run the project on Google Cloud:
     * Pre-requisites: (if not done already)
     1. Create an AWS account (if not done already), install AWS CLI and set up your credentials    
     
